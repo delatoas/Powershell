@@ -146,6 +146,4 @@ All output is saved to the log path (default: `C:\Temp\StaleADComputerLogs`):
 
 - [HOWTO-GUI.md](HOWTO-GUI.md) - Detailed GUI user guide with all controls and workflows
 
-## Related Scripts
 
-- [Get-ADStaleDevices.ps1](../Get-ADStaleDevices.ps1) - Original simple stale device report
