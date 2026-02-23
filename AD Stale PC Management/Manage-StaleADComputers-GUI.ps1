@@ -238,7 +238,7 @@ function Remove-SelectedComputers {
         
         try {
             $adComputer = Get-ADComputer -Identity $computerName
-            Remove-ADComputer -Identity $adComputer -Confirm:$false
+            Remove-ADObject -Identity $adComputer -Recursive -Confirm:$false
             Write-GUILog "Deleted computer: $computerName"
             
             $results += [PSCustomObject]@{

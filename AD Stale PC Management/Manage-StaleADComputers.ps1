@@ -314,7 +314,7 @@ function Remove-DisabledComputer {
             $adComputer = Get-ADComputer -Identity $computerName
             
             # Remove the computer object
-            Remove-ADComputer -Identity $adComputer -Confirm:$false
+            Remove-ADObject -Identity $adComputer -Recursive -Confirm:$false
             Write-Log "Deleted computer: $computerName (was disabled for $($Computer.DaysSinceDisabled) days)"
             
             [PSCustomObject]@{
