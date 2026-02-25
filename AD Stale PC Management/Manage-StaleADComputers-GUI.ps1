@@ -14,7 +14,7 @@
 
 .NOTES
     Author: Alberto de la Torre
-    Version: 1.0
+    Version: 2.0
     Date: February 2026
 #>
 
