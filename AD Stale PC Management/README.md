@@ -7,8 +7,26 @@ This folder contains scripts for managing stale computer objects in Active Direc
 **Key Features:**
 - Target **Workstations** (Win 10/11), **Servers**, or both via configurable filters
 - Industry best practice 3-stage lifecycle
+- Automatic RSAT module installation — no manual prerequisites
+- Full audit trail with operator identity in every log entry and CSV record
 - Command-line script for automation and GUI version for interactive use
 - Built-in safety confirmations prevent accidental deletions
+
+## Screenshots
+
+### GUI Version
+
+![GUI Main Window — shows settings, data grid with stale computers, and activity log with user identity](screenshots/gui-main-window.png)
+
+### Console Version
+
+![Console Output — shows report mode with user identity in every log line](screenshots/console-output.png)
+
+### Safety Confirmations
+
+![Disable/Tag confirmation dialog showing computers to be processed](screenshots/confirm-disable-dialog.png)
+
+![Delete confirmation — requires typing DELETE to proceed](screenshots/confirm-delete-dialog.png)
 
 ## Industry Best Practices
 
@@ -24,7 +42,7 @@ This folder contains scripts for managing stale computer objects in Active Direc
 
 1. **Safety**: 30-day buffer after disabling allows for recovery if a computer was incorrectly flagged
 2. **Visibility**: Moving to a staging OU makes review easy
-3. **Audit Trail**: Description tagging preserves when and why accounts were disabled
+3. **Audit Trail**: Description tagging preserves when and why accounts were disabled; operator identity captured in every log and CSV record
 4. **Hybrid Sync**: Deletions sync to Azure AD/Intune via Azure AD Connect
 
 ### Key Attributes for Staleness Detection
@@ -117,10 +135,32 @@ Windows Forms GUI version for interactive use. See [HOWTO-GUI.md](HOWTO-GUI.md) 
 
 All output is saved to the log path (default: `C:\Temp\StaleADComputerLogs`):
 
-- `StaleADComputers_YYYYMMDD.log` - Detailed activity log
+- `StaleADComputers_YYYYMMDD.log` - Detailed activity log with operator identity
 - `StaleComputers_Report_YYYYMMDD_HHMMSS.csv` - Full computer inventory
-- `DisableActions_YYYYMMDD_HHMMSS.csv` - Record of disabled computers
-- `DeleteActions_YYYYMMDD_HHMMSS.csv` - Record of deleted computers
+- `DisableActions_YYYYMMDD_HHMMSS.csv` - Record of disabled computers with `PerformedBy`
+- `DeleteActions_YYYYMMDD_HHMMSS.csv` - Record of deleted computers with `PerformedBy`
+
+### Log Format
+
+Every log line includes the operator's identity for audit purposes:
+
+```
+[2026-03-04 10:30:45] [Info] [CONTOSO\admin.user] Starting scan for stale computers
+[2026-03-04 10:30:46] [Warning] [CONTOSO\admin.user] Skipping PC001 - only disabled for 15 days
+[2026-03-04 10:30:47] [Error] [CONTOSO\admin.user] Failed to delete PC002: Access denied
+```
+
+### Action CSV Fields
+
+Disable/Tag and Delete action CSVs include:
+
+| Field | Description |
+|-------|-------------|
+| ComputerName | Name of the computer acted upon |
+| Action | `Disabled`, `Tagged`, or `Deleted` |
+| Status | `Success` or `Failed` |
+| PerformedBy | `DOMAIN\Username` of the operator |
+| Timestamp | Date/time of the action |
 
 ## Report Fields
 
@@ -146,8 +186,10 @@ All output is saved to the log path (default: `C:\Temp\StaleADComputerLogs`):
 ## Prerequisites
 
 - **PowerShell 5.1** or later
-- **Active Directory PowerShell module** (`RSAT-AD-PowerShell`)
-  - Scripts enforce this via `#Requires -Modules ActiveDirectory`
+- **Active Directory PowerShell module** — automatically installed if missing
+  - Windows 10/11: installed via `Add-WindowsCapability` (RSAT)
+  - Windows Server: installed via `Install-WindowsFeature RSAT-AD-PowerShell`
+  - Requires **Administrator** privileges for automatic installation
 - Permissions to read, disable, move, and delete computer objects
 - Write access to log directory
 - For GUI: .NET Framework (Windows Forms)
@@ -155,5 +197,3 @@ All output is saved to the log path (default: `C:\Temp\StaleADComputerLogs`):
 ## Documentation
 
 - [HOWTO-GUI.md](HOWTO-GUI.md) - Detailed GUI user guide with all controls and workflows
-
-

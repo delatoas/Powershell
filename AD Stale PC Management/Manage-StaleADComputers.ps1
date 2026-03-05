@@ -14,6 +14,11 @@
     For Hybrid Azure AD Join environments, deletions will sync to Azure AD/Intune
     via Azure AD Connect.
 
+    Features:
+    - Automatic RSAT/ActiveDirectory module installation if not detected
+    - Full audit trail: operator identity (DOMAIN\User) in every log line and CSV record
+    - PerformedBy field in all action CSV exports
+
 .PARAMETER InactiveDays
     Number of days of inactivity before a computer is considered stale. Default: 365
 
@@ -59,15 +64,19 @@
 
 .NOTES
     Author: Alberto de la Torre
-    Version: 1.0
-    Date: February 2026
+    Version: 2.0
+    Date: March 2026
+
+    Changelog:
+    2.0 - Added auto-install AD module, user account audit logging, PerformedBy in CSVs
+    1.0 - Initial release
 
     Industry Best Practices Implemented:
     - Multi-stage approach (Identify → Disable → Delete)
     - Configurable thresholds
     - OS-based filtering (Windows 10/11 workstations only)
     - Automatic exclusion of Windows Server systems
-    - Comprehensive logging
+    - Comprehensive logging with operator identity
     - Description tagging with timestamps
     - Staging OU for review before deletion
 #>

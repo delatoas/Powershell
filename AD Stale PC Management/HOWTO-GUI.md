@@ -15,7 +15,10 @@ The **Stale AD Computer Management GUI** (`Manage-StaleADComputers-GUI.ps1`) pro
 ## Prerequisites
 
 - **PowerShell 5.1** or later
-- **ActiveDirectory** PowerShell module
+- **Active Directory PowerShell module** — automatically installed at launch if missing
+  - Windows 10/11: Installed via `Add-WindowsCapability` (RSAT)
+  - Windows Server: Installed via `Install-WindowsFeature`
+  - Requires **Administrator** privileges for first-time auto-install
 - Appropriate AD permissions to:
   - Query computer objects
   - Disable computer accounts
@@ -30,7 +33,13 @@ The **Stale AD Computer Management GUI** (`Manage-StaleADComputers-GUI.ps1`) pro
 .\Manage-StaleADComputers-GUI.ps1
 ```
 
-The window will open centered on your screen.
+The window will open centered on your screen. The **title bar** displays the current operator, for example:
+
+```
+Stale AD Computer Management - CONTOSO\admin.user
+```
+
+![GUI Main Window — Settings panel, data grid, and activity log with user identity](screenshots/gui-main-window.png)
 
 ---
 
@@ -38,7 +47,7 @@ The window will open centered on your screen.
 
 ### Settings Panel
 
-The top section contains configuration options organized in three rows.
+The top section contains configuration options organized in four rows.
 
 #### Row 1: Core Settings
 
@@ -59,14 +68,19 @@ OU=Disabled Computers,OU=Workstations,DC=contoso,DC=com
 |---------|-------------|---------|
 | **Log Path** | Directory where operation log files are saved | `C:\Temp\StaleADComputerLogs` |
 | **Include OS Types** | Checkboxes to include **Workstations** and/or **Servers** | `Workstations` checked |
+
+#### Row 3: Export Path
+
+| Element | Description | Default |
+|---------|-------------|---------|
 | **Export Folder** | Directory where CSV reports are saved | `C:\Temp\StaleADComputerReports` |
 | **[...] Button** | Opens a folder browser to select the export folder | N/A |
 
-#### Row 3: Action Buttons
+#### Row 4: Action Buttons
 
 | Button | Color | Description |
 |--------|-------|-------------|
-| **Scan for Stale Computers** | Blue | Queries AD for workstations matching the inactive days threshold |
+| **Scan for Stale Computers** | Blue | Queries AD for computers matching the inactive days threshold |
 | **Select All** | Default | Checks the "Select" checkbox for all rows in the grid |
 | **Select None** | Default | Unchecks the "Select" checkbox for all rows |
 | **Disable/Tag** | Yellow | Disables selected enabled computers and/or tags already-disabled computers for deletion |
@@ -82,7 +96,7 @@ OU=Disabled Computers,OU=Workstations,DC=contoso,DC=com
 Located below the settings panel, displays real-time statistics:
 
 ```
-Total: X | Enabled: Y | Disabled: Z | Marked for Deletion: W
+Total: 12 | Enabled: 8 | Disabled: 4 | Marked for Deletion: 2
 ```
 
 - **Total** - Number of stale computers found
@@ -119,12 +133,14 @@ The main data grid displays scan results with the following columns:
 
 ### Activity Log
 
-The bottom panel shows a dark-themed, read-only log with timestamped entries:
+The bottom panel shows a dark-themed, read-only log with timestamped entries that include the **operator's identity**:
 
 ```
-[2026-02-17 10:30:45] [Info] Starting scan for stale computers
-[2026-02-17 10:30:46] [Warning] Skipping PC001 - only disabled for 15 days
-[2026-02-17 10:30:47] [Error] Failed to delete PC002: Access denied
+[2026-03-04 10:30:45] [Info] [CONTOSO\admin.user] Starting scan for stale computers
+[2026-03-04 10:30:45] [Info] [CONTOSO\admin.user] Executed by: CONTOSO\admin.user
+[2026-03-04 10:30:46] [Info] [CONTOSO\admin.user] Found 142 computers matching filter in AD
+[2026-03-04 10:30:47] [Info] [CONTOSO\admin.user] Found 12 stale computers
+[2026-03-04 10:30:47] [Info] [CONTOSO\admin.user] Scan completed.
 ```
 
 **Log Levels:**
@@ -166,6 +182,8 @@ Logs are also saved to files in the configured **Log Path** directory.
    - Number of computers to tag (already disabled externally)
 4. Click **Yes** to proceed
 
+![Disable/Tag confirmation dialog](screenshots/confirm-disable-dialog.png)
+
 **What happens:**
 - **Enabled computers** → Disabled, description updated with `DISABLED: YYYY-MM-DD`, optionally moved to Staging OU
 - **Already disabled (untagged) computers** → Description updated with deletion tag only
@@ -179,13 +197,15 @@ Logs are also saved to files in the configured **Log Path** directory.
 5. First confirmation dialog: Review the list, click **OK**
 6. Second confirmation: Type `DELETE` (case-sensitive) and click **Confirm**
 
+![Delete confirmation — type DELETE to proceed](screenshots/confirm-delete-dialog.png)
+
 ### Deletion Logic: Managed vs. Unmanaged
 
 The **Delete Selected** button handles objects differently based on their state to balance safety with flexibility:
 
-1.  **Managed Objects (Tagged by Script)**: 
+1.  **Managed Objects (Tagged by Script)**:
     *   Identified by a `DISABLED: YYYY-MM-DD` tag in the description.
-    *   **Behavior**: Enforces the **Delete After Days** safety threshold. 
+    *   **Behavior**: Enforces the **Delete After Days** safety threshold.
     *   **Purpose**: Ensures a "cooling off" period for computers disabled by this tool, allowing them to be easily recovered if disabled in error.
 
 2.  **Unmanaged Objects (Externally Disabled)**:
@@ -193,7 +213,7 @@ The **Delete Selected** button handles objects differently based on their state 
     *   **Behavior**: Can be **deleted immediately**, bypassing the safety threshold.
     *   **Purpose**: Assumes manual vetting has already occurred for objects disabled outside of this script.
 
-3.  **Safety Lock**: 
+3.  **Safety Lock**:
     *   The script will **refuse to delete any enabled account**, even if it matches the stale criteria. It must be disabled first.
 
 ---
@@ -209,12 +229,24 @@ The **Delete Selected** button handles objects differently based on their state 
 
 ### Audit Trail
 
-All operations are logged to:
-- **On-screen** Activity Log
+All operations capture the **operator identity** (`DOMAIN\Username`) and are logged to:
+
+- **On-screen** Activity Log (includes user in every line)
+- **Title bar** shows current operator
 - **Log files** in the configured Log Path:
-  - `StaleADComputers_YYYYMMDD_HHMMSS.log` - Session log
-  - `DisableTagActions_YYYYMMDD_HHMMSS.csv` - Disable/tag results
-  - `DeleteActions_YYYYMMDD_HHMMSS.csv` - Delete results
+  - `StaleADComputers_YYYYMMDD.log` - Session log with operator identity
+  - `DisableTagActions_YYYYMMDD_HHMMSS.csv` - Disable/tag results with `PerformedBy`
+  - `DeleteActions_YYYYMMDD_HHMMSS.csv` - Delete results with `PerformedBy`
+
+#### Action CSV Fields
+
+| Field | Description |
+|-------|-------------|
+| ComputerName | Name of the computer acted upon |
+| Action | `Disabled`, `Tagged`, or `Deleted` |
+| Status | `Success` or `Failed` |
+| **PerformedBy** | `DOMAIN\Username` of the operator who ran the action |
+| Timestamp | Date/time of the action |
 
 ### Description Tracking
 
@@ -258,6 +290,14 @@ If configured, disabled computers are moved to a quarantine OU, making it easy t
 
 ## Troubleshooting
 
+### Module Installation Failures
+
+If the automatic RSAT installation fails:
+- Ensure PowerShell is running **as Administrator**
+- Windows 10/11: Verify internet access (required for RSAT install via `Add-WindowsCapability`)
+- Windows Server: Verify the `ServerManager` module is available
+- Manual install: `Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0"`
+
 ### "Access Denied" Errors
 
 Ensure your account has:
@@ -285,8 +325,8 @@ Ensure your account has:
 | File Pattern | Content |
 |--------------|---------|
 | `StaleComputers_Report_*.csv` | Scan results export |
-| `StaleADComputers_*.log` | Session activity log |
-| `DisableTagActions_*.csv` | Disable/tag operation results |
-| `DeleteActions_*.csv` | Delete operation results |
+| `StaleADComputers_*.log` | Session activity log with operator identity |
+| `DisableTagActions_*.csv` | Disable/tag operation results with `PerformedBy` |
+| `DeleteActions_*.csv` | Delete operation results with `PerformedBy` |
 
 All timestamps use format: `YYYYMMDD` for logs and `YYYYMMDD_HHMMSS` for CSV exports.

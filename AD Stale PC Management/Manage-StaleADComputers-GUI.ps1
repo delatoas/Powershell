@@ -12,10 +12,21 @@
     This script automatically targets only Windows workstation operating systems
     (Windows 10, Windows 11) and excludes Windows Server systems.
 
+    Features:
+    - Automatic RSAT/ActiveDirectory module installation if not detected
+    - Full audit trail: operator identity (DOMAIN\User) in every log line and CSV record
+    - PerformedBy field in all action CSV exports
+    - Operator identity displayed in window title bar
+
 .NOTES
     Author: Alberto de la Torre
-    Version: 2.0
-    Date: February 2026
+    Version: 2.1
+    Date: March 2026
+
+    Changelog:
+    2.1 - Added user account audit logging, auto-install AD module, fixed single-object delete bug
+    2.0 - Added auto-install AD module, replaced #Requires directive
+    1.0 - Initial release
 #>
 
 Add-Type -AssemblyName System.Windows.Forms
