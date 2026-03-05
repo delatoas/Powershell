@@ -72,7 +72,7 @@
     - Staging OU for review before deletion
 #>
 
-#Requires -Modules ActiveDirectory
+
 
 [CmdletBinding(DefaultParameterSetName = 'Report')]
 param(
@@ -109,6 +109,55 @@ param(
     [Parameter()]
     [switch]$Force
 )
+
+#region Active Directory Module Check and Auto-Install
+if (-not (Get-Module -ListAvailable ActiveDirectory)) {
+    try {
+        $isServer = (Get-CimInstance Win32_OperatingSystem).Caption -match "Server"
+        Write-Host "Active Directory module not detected. Attempting to install required RSAT tools..." -ForegroundColor Cyan
+        Write-Host "This may take a few minutes. Please ensure you are running as Administrator." -ForegroundColor Cyan
+
+        if ($isServer) {
+            # Server OS: Use Install-WindowsFeature
+            if (Get-Command Install-WindowsFeature -ErrorAction SilentlyContinue) {
+                Install-WindowsFeature RSAT-AD-PowerShell -ErrorAction Stop
+            }
+            else {
+                throw "Install-WindowsFeature command not found. Cannot install RSAT on this Server version automatically."
+            }
+        }
+        else {
+            # Windows 10/11: Use Add-WindowsCapability
+            if (Get-Command Add-WindowsCapability -ErrorAction SilentlyContinue) {
+                Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0" -ErrorAction Stop
+            }
+            else {
+                throw "Add-WindowsCapability command not found. Cannot install RSAT on this Windows version automatically."
+            }
+        }
+
+        # Verify installation
+        if (-not (Get-Module -ListAvailable ActiveDirectory)) {
+            throw "Installation completed but module still not detected. Please install manually."
+        }
+        
+        Write-Host "Active Directory module installed successfully." -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to automatically install Active Directory module: $($_.Exception.Message)"
+        Write-Host "Please run PowerShell as Administrator or install RSAT (Active Directory Domain Services & Lightweight Directory Services Tools) manually." -ForegroundColor Yellow
+        exit 1
+    }
+}
+
+# Import the module to be sure it's available for the rest of the script
+Import-Module ActiveDirectory -ErrorAction SilentlyContinue
+if (-not (Get-Module ActiveDirectory)) {
+    Write-Error "Active Directory module could not be loaded. Please ensure RSAT is installed and that you have appropriate permissions."
+    exit 1
+}
+#endregion
+
 
 # Handle default OS filter if neither is specified
 if (-not $IncludeWorkstations -and -not $IncludeServers) {

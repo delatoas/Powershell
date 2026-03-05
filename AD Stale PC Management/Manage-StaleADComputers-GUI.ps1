@@ -18,16 +18,63 @@
     Date: February 2026
 #>
 
-#Requires -Modules ActiveDirectory
-
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
+#region Active Directory Module Check and Auto-Install
+if (-not (Get-Module -ListAvailable ActiveDirectory)) {
+    try {
+        $isServer = (Get-CimInstance Win32_OperatingSystem).Caption -match "Server"
+        $statusMsg = "Active Directory module not detected. Attempting to install required RSAT tools... This may take a few minutes."
+        
+        [System.Windows.Forms.MessageBox]::Show($statusMsg, "Module Installation", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+
+        if ($isServer) {
+            # Server OS: Use Install-WindowsFeature
+            if (Get-Command Install-WindowsFeature -ErrorAction SilentlyContinue) {
+                Install-WindowsFeature RSAT-AD-PowerShell -ErrorAction Stop
+            }
+            else {
+                throw "Install-WindowsFeature command not found. Cannot install RSAT on this Server version automatically."
+            }
+        }
+        else {
+            # Windows 10/11: Use Add-WindowsCapability
+            if (Get-Command Add-WindowsCapability -ErrorAction SilentlyContinue) {
+                Add-WindowsCapability -Online -Name "Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0" -ErrorAction Stop
+            }
+            else {
+                throw "Add-WindowsCapability command not found. Cannot install RSAT on this Windows version automatically."
+            }
+        }
+
+        # Verify installation
+        if (-not (Get-Module -ListAvailable ActiveDirectory)) {
+            throw "Installation completed but module still not detected. Please install manually."
+        }
+        
+        [System.Windows.Forms.MessageBox]::Show("Active Directory module installed successfully. Please restart the script if it does not load correctly.", "Installation Complete", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+    }
+    catch {
+        [System.Windows.Forms.MessageBox]::Show("Failed to automatically install Active Directory module: $($_.Exception.Message)`n`nPlease run PowerShell as Administrator or install RSAT (Active Directory Domain Services & Lightweight Directory Services Tools) manually.", "Installation Failed", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        exit
+    }
+}
+
+# Import the module to be sure it's available for the rest of the script
+Import-Module ActiveDirectory -ErrorAction SilentlyContinue
+if (-not (Get-Module ActiveDirectory)) {
+    [System.Windows.Forms.MessageBox]::Show("Active Directory module could not be loaded. Please ensure RSAT is installed and that you have appropriate permissions.", "Module Load Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+    exit
+}
+#endregion
 
 #region Script Variables
 $script:LogPath = "C:\Temp\StaleADComputerLogs"
 $script:LogFile = $null
 $script:StaleComputers = @()
 $script:ComputerReport = @()
+$script:RunningUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 #endregion
 
 #region Functions
@@ -39,7 +86,7 @@ function Write-GUILog {
     )
     
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logMessage = "[$timestamp] [$Level] $Message"
+    $logMessage = "[$timestamp] [$Level] [$($script:RunningUser)] $Message"
     
     # Add to log textbox
     $txtLog.AppendText("$logMessage`r`n")
@@ -199,6 +246,7 @@ function Disable-SelectedComputers {
                 ComputerName = $computerName
                 Action       = "Disabled"
                 Status       = "Success"
+                PerformedBy  = $script:RunningUser
                 Timestamp    = Get-Date
                 NewLocation  = if ($TargetOU) { $TargetOU } else { "Not moved" }
             }
@@ -209,6 +257,7 @@ function Disable-SelectedComputers {
                 ComputerName = $computerName
                 Action       = "Disable"
                 Status       = "Failed"
+                PerformedBy  = $script:RunningUser
                 Timestamp    = Get-Date
                 Error        = $_.Exception.Message
             }
@@ -245,6 +294,7 @@ function Remove-SelectedComputers {
                 ComputerName = $computerName
                 Action       = "Deleted"
                 Status       = "Success"
+                PerformedBy  = $script:RunningUser
                 Timestamp    = Get-Date
                 DaysDisabled = $computer.DaysSinceDisabled
             }
@@ -255,6 +305,7 @@ function Remove-SelectedComputers {
                 ComputerName = $computerName
                 Action       = "Delete"
                 Status       = "Failed"
+                PerformedBy  = $script:RunningUser
                 Timestamp    = Get-Date
                 Error        = $_.Exception.Message
             }
@@ -290,6 +341,7 @@ function Tag-SelectedComputers {
                 ComputerName   = $computerName
                 Action         = "Tagged"
                 Status         = "Success"
+                PerformedBy    = $script:RunningUser
                 Timestamp      = Get-Date
                 NewDescription = $newDescription
             }
@@ -300,6 +352,7 @@ function Tag-SelectedComputers {
                 ComputerName = $computerName
                 Action       = "Tag"
                 Status       = "Failed"
+                PerformedBy  = $script:RunningUser
                 Timestamp    = Get-Date
                 Error        = $_.Exception.Message
             }
@@ -380,13 +433,13 @@ function Get-SelectedComputers {
         }
     }
     
-    return $selected
+    return @($selected)
 }
 #endregion Functions
 
 #region Build Form
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Stale AD Computer Management"
+$form.Text = "Stale AD Computer Management - $($script:RunningUser)"
 $form.Size = New-Object System.Drawing.Size(1200, 800)
 $form.StartPosition = "CenterScreen"
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 9)
@@ -650,6 +703,7 @@ $btnScan.Add_Click({
         
             Write-GUILog "=========================================="
             Write-GUILog "Starting scan for stale computers"
+            Write-GUILog "Executed by: $($script:RunningUser)"
             Write-GUILog "Inactive Days Threshold: $($numInactiveDays.Value)"
             Write-GUILog "Included Workstations: $($chkWorkstations.Checked)"
             Write-GUILog "Included Servers: $($chkServers.Checked)"
@@ -807,14 +861,14 @@ $btnDelete.Add_Click({
         # If MarkedForDeletion, check DaysSinceDisabled threshold
         # If not marked (disabled externally), still allow deletion
         $minDays = $numDeleteAfterDays.Value
-        $toDelete = $selected | Where-Object { 
-            -not $_.Enabled -and (
-                # Either: marked for deletion and past threshold
-                ($_.MarkedForDeletion -and $_.DaysSinceDisabled -ge $minDays) -or
-                # Or: disabled externally (no tag) - allow deletion
-                (-not $_.MarkedForDeletion)
-            )
-        }
+        $toDelete = @($selected | Where-Object { 
+                -not $_.Enabled -and (
+                    # Either: marked for deletion and past threshold
+                    ($_.MarkedForDeletion -and $_.DaysSinceDisabled -ge $minDays) -or
+                    # Or: disabled externally (no tag) - allow deletion
+                    (-not $_.MarkedForDeletion)
+                )
+            })
     
         # Count how many are externally disabled (no tag)
         $externallyDisabled = ($toDelete | Where-Object { -not $_.MarkedForDeletion }).Count
@@ -822,7 +876,7 @@ $btnDelete.Add_Click({
     
         if ($toDelete.Count -eq 0) {
             # Check if any are marked but not old enough
-            $notReady = $selected | Where-Object { $_.MarkedForDeletion -and $_.DaysSinceDisabled -lt $minDays }
+            $notReady = @($selected | Where-Object { $_.MarkedForDeletion -and $_.DaysSinceDisabled -lt $minDays })
             if ($notReady.Count -gt 0) {
                 [System.Windows.Forms.MessageBox]::Show("Selected computers are marked for deletion but haven't been disabled long enough.`n`nRequired: $minDays days`nCurrent: $($notReady[0].DaysSinceDisabled) days", "Not Ready", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
             }
