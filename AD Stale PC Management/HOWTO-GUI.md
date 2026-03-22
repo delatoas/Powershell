@@ -83,11 +83,12 @@ OU=Disabled Computers,OU=Workstations,DC=contoso,DC=com
 | **Scan for Stale Computers** | Blue | Queries AD for computers matching the inactive days threshold |
 | **Select All** | Default | Checks the "Select" checkbox for all rows in the grid |
 | **Select None** | Default | Unchecks the "Select" checkbox for all rows |
+| **Select Eligible** | Dark Red | Auto-selects only computers eligible for deletion (disabled past threshold or externally disabled) |
 | **Disable/Tag** | Yellow | Disables selected enabled computers and/or tags already-disabled computers for deletion |
 | **Delete Selected** | Red | Permanently deletes selected disabled computers (requires confirmation) |
 | **Export to CSV** | Green | Exports the current scan results to a timestamped CSV file |
 
-> **Note:** The Disable/Tag, Delete, and Export buttons are disabled until a scan is performed.
+> **Note:** The Select Eligible, Disable/Tag, Delete, and Export buttons are disabled until a scan is performed.
 
 ---
 
@@ -192,8 +193,10 @@ Logs are also saved to files in the configured **Log Path** directory.
 
 1. Wait for the **Delete After Days** period to pass
 2. Run another scan
-3. Select computers that are ready for deletion
-4. Click **Delete Selected**
+3. Click **Select Eligible** to automatically check only computers that meet deletion criteria
+   - Computers tagged by this script and disabled for ≥ the **Delete After Days** threshold
+   - Computers disabled externally (no tag) — eligible immediately
+4. Review the selection, then click **Delete Selected**
 5. First confirmation dialog: Review the list, click **OK**
 6. Second confirmation: Type `DELETE` (case-sensitive) and click **Confirm**
 

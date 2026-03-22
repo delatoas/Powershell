@@ -7,6 +7,7 @@ This folder contains scripts for managing stale computer objects in Active Direc
 **Key Features:**
 - Target **Workstations** (Win 10/11), **Servers**, or both via configurable filters
 - Industry best practice 3-stage lifecycle
+- **Select Eligible** button for one-click selection of deletion-ready computers
 - Automatic RSAT module installation — no manual prerequisites
 - Full audit trail with operator identity in every log entry and CSV record
 - Command-line script for automation and GUI version for interactive use

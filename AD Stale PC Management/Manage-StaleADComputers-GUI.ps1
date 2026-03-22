@@ -20,12 +20,12 @@
 
 .NOTES
     Author: Alberto de la Torre
-    Version: 2.1
+    Version: 2.2
     Date: March 2026
 
     Changelog:
+    2.2 - Added Select Eligible button for one-click deletion-ready selection
     2.1 - Added user account audit logging, auto-install AD module, fixed single-object delete bug
-    2.0 - Added auto-install AD module, replaced #Requires directive
     1.0 - Initial release
 #>
 
@@ -594,6 +594,15 @@ $btnSelectNone.Text = "Select None"
 $btnSelectNone.Width = 80
 $btnSelectNone.Height = 30
 
+$btnSelectEligible = New-Object System.Windows.Forms.Button
+$btnSelectEligible.Text = "Select Eligible"
+$btnSelectEligible.Width = 110
+$btnSelectEligible.Height = 30
+$btnSelectEligible.BackColor = [System.Drawing.Color]::FromArgb(180, 0, 0)
+$btnSelectEligible.ForeColor = [System.Drawing.Color]::White
+$btnSelectEligible.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnSelectEligible.Enabled = $false
+
 # Add controls to settings layout
 $settingsLayout.Controls.Add($lblInactiveDays, 0, 0)
 $settingsLayout.Controls.Add($numInactiveDays, 1, 0)
@@ -625,6 +634,7 @@ $buttonPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
 $buttonPanel.Controls.Add($btnScan)
 $buttonPanel.Controls.Add($btnSelectAll)
 $buttonPanel.Controls.Add($btnSelectNone)
+$buttonPanel.Controls.Add($btnSelectEligible)
 $buttonPanel.Controls.Add($btnDisable)
 $buttonPanel.Controls.Add($btnDelete)
 $buttonPanel.Controls.Add($btnExport)
@@ -741,6 +751,7 @@ $btnScan.Add_Click({
             $btnDisable.Enabled = $true
             $btnDelete.Enabled = $true
             $btnExport.Enabled = $true
+            $btnSelectEligible.Enabled = $true
         
             Write-GUILog "Scan completed."
         }
@@ -763,6 +774,33 @@ $btnSelectAll.Add_Click({
 $btnSelectNone.Add_Click({
         foreach ($row in $dataGridView.Rows) {
             $row.Cells["Select"].Value = $false
+        }
+    })
+
+$btnSelectEligible.Add_Click({
+        $minDays = $numDeleteAfterDays.Value
+        $eligibleCount = 0
+
+        foreach ($row in $dataGridView.Rows) {
+            $computerName = $row.Cells["Name"].Value
+            $computer = $script:ComputerReport | Where-Object { $_.Name -eq $computerName }
+
+            if ($computer -and -not $computer.Enabled -and (
+                    ($computer.MarkedForDeletion -and $computer.DaysSinceDisabled -ge $minDays) -or
+                    (-not $computer.MarkedForDeletion)
+                )) {
+                $row.Cells["Select"].Value = $true
+                $eligibleCount++
+            }
+            else {
+                $row.Cells["Select"].Value = $false
+            }
+        }
+
+        Write-GUILog "Selected $eligibleCount computer(s) eligible for deletion (disabled $minDays+ days or externally disabled)"
+
+        if ($eligibleCount -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show("No computers are currently eligible for deletion.`n`nEligibility requires:`n- Disabled account`n- Either tagged for $minDays+ days or disabled externally", "No Eligible Computers", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         }
     })
 
