@@ -6,8 +6,13 @@ This folder contains scripts for managing stale computer objects in Active Direc
 
 **Key Features:**
 - Target **Workstations** (Win 10/11), **Servers**, or both via configurable filters
-- Industry best practice 3-stage lifecycle
+- Scope scans to a specific **OU / Search Base** or search the entire domain
+- Industry best practice 3-stage lifecycle with safety buffer before deletion
+- **Row color coding** — visual lifecycle status at a glance
 - **Select Eligible** button for one-click selection of deletion-ready computers
+- **Re-enable** incorrectly disabled computers with automatic description restoration
+- **Right-click context menu** for quick single-computer actions
+- Live **grid filter** to find computers by name or OU in large result sets
 - Automatic RSAT module installation — no manual prerequisites
 - Full audit trail with operator identity in every log entry and CSV record
 - Command-line script for automation and GUI version for interactive use
@@ -17,7 +22,7 @@ This folder contains scripts for managing stale computer objects in Active Direc
 
 ### GUI Version
 
-![GUI Main Window — shows settings, data grid with stale computers, and activity log with user identity](screenshots/gui-main-window.png)
+![GUI Main Window — settings panel with Search Base and filter bar, color-coded data grid, and activity log](screenshots/gui-main-window.png)
 
 ### Console Version
 
@@ -36,7 +41,7 @@ This folder contains scripts for managing stale computer objects in Active Direc
 | Stage | Timing | Action | Reversible |
 |-------|--------|--------|------------|
 | **Identify** | 365+ days inactive (configurable) | Report and flag | Yes |
-| **Disable** | After review | Disable account, move to staging OU, tag with date | Yes |
+| **Disable** | After review | Disable account, move to staging OU, tag with date | Yes — use Re-enable |
 | **Delete** | 30+ days after disable | Permanently remove from AD | No |
 
 ### Why This Approach?
@@ -45,6 +50,7 @@ This folder contains scripts for managing stale computer objects in Active Direc
 2. **Visibility**: Moving to a staging OU makes review easy
 3. **Audit Trail**: Description tagging preserves when and why accounts were disabled; operator identity captured in every log and CSV record
 4. **Hybrid Sync**: Deletions sync to Azure AD/Intune via Azure AD Connect
+5. **Recovery**: Re-enable action restores the original AD description from the embedded tag
 
 ### Key Attributes for Staleness Detection
 
@@ -134,12 +140,16 @@ Windows Forms GUI version for interactive use. See [HOWTO-GUI.md](HOWTO-GUI.md) 
 
 ## Output Files
 
-All output is saved to the log path (default: `C:\Temp\StaleADComputerLogs`):
+Reports and action logs are saved to the configured **Export Folder** (default: `C:\Temp\StaleADComputerReports`).
+Activity logs are saved to the configured **Log Path** (default: `C:\Temp\StaleADComputerLogs`).
 
-- `StaleADComputers_YYYYMMDD.log` - Detailed activity log with operator identity
-- `StaleComputers_Report_YYYYMMDD_HHMMSS.csv` - Full computer inventory
-- `DisableActions_YYYYMMDD_HHMMSS.csv` - Record of disabled computers with `PerformedBy`
-- `DeleteActions_YYYYMMDD_HHMMSS.csv` - Record of deleted computers with `PerformedBy`
+| File Pattern | Saved To | Content |
+|---|---|---|
+| `StaleADComputers_YYYYMMDD.log` | Log Path | Detailed activity log with operator identity |
+| `StaleComputers_Report_YYYYMMDD_HHMMSS.csv` | Export Folder | Full computer inventory |
+| `DisableTagActions_YYYYMMDD_HHMMSS.csv` | Export Folder | Record of disabled/tagged computers with `PerformedBy` |
+| `DeleteActions_YYYYMMDD_HHMMSS.csv` | Export Folder | Record of deleted computers with `PerformedBy` |
+| `ReEnableActions_YYYYMMDD_HHMMSS.csv` | Export Folder | Record of re-enabled computers with `PerformedBy` |
 
 ### Log Format
 
@@ -153,12 +163,12 @@ Every log line includes the operator's identity for audit purposes:
 
 ### Action CSV Fields
 
-Disable/Tag and Delete action CSVs include:
+All action CSVs (Disable/Tag, Delete, Re-enable) include:
 
 | Field | Description |
 |-------|-------------|
 | ComputerName | Name of the computer acted upon |
-| Action | `Disabled`, `Tagged`, or `Deleted` |
+| Action | `Disabled`, `Tagged`, `Deleted`, or `Re-enabled` |
 | Status | `Success` or `Failed` |
 | PerformedBy | `DOMAIN\Username` of the operator |
 | Timestamp | Date/time of the action |
